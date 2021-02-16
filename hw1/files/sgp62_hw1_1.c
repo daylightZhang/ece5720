@@ -98,7 +98,6 @@ int main(int argc, char **argv) {
         //printf("%1.3e ", *(T + n*MAX_SIZE + s));
       }
     } // end of loop over strides
-    //printf("\n");
   } // end of loop over subarrays
 /*
   float Time2 = clock_gettime(CLOCK_MONOTONIC, &end);
