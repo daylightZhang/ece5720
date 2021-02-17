@@ -1,4 +1,4 @@
-/* Stefen Pegels, sgp62
+/* Stefen Pegels sgp62
 cache access time by different strides
 (1) Set up a linear array of MAX_SIZE floats. 
 (2) In a loop, examine access to subarrays of sizes from MIN_SIZE, 
@@ -22,6 +22,7 @@ cache access time by different strides
     run: ./sgp62_hw1_cache                          
 */
 #define _POSIX_C_SOURCE 199309L //Used since multiple structs and macros were undefined without it, such as CLOCK_MONOTONIC and timespec
+//source for above ^ cited in writeup
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,8 +30,8 @@ cache access time by different strides
 
 #define K 		10	        // run each stride K times
 #define BILLION 	1000000000
-#define min_exp         10              // smallest array tested
-#define max_exp         16              // use as large max_exp as 
+#define min_exp         16              // smallest array tested
+#define max_exp         22              // use as large max_exp as 
                                         // the system will tolerate
 
 int main(int argc, char **argv) {
@@ -55,7 +56,7 @@ int main(int argc, char **argv) {
 
 // dynamic memory allocation for T
   float *T;
-  T = (float *) malloc((max_exp*(num_arrays+2))*sizeof(float));
+  T = (float *) malloc((max_exp*(num_arrays+1))*sizeof(float));
   if(!T) {
     printf("Memory not allocated, malloc returns NULL!\n");
     exit(1);
@@ -70,20 +71,17 @@ int main(int argc, char **argv) {
   clock_getres(CLOCK_MONOTONIC, &start);
   printf("resolution of CLOCK_MONOTONIC is %ld ns\n", start.tv_nsec);
 
-	
-  // Main loop,  double the array length starting from min length
-  for(int n = MIN_SIZE; n <= MAX_SIZE; n += n){
-    arrayindex++;
-    logstride = 0;
-    //Double the stride
-    for(int s = 1; s <= MAX_SIZE; s += s){
-      //Create log of stride index column
-      if(arrayindex == 1 && logstride < max_exp){
-        *(T+logstride*num_arrays) = logstride;
-        fprintf(tp, "%1.3e, ", *(T+logstride*num_arrays));
-        //printf("%.3e ", *(T+logstride*num_arrays));
-      }
-      logstride++;
+
+
+  //Main loop, Double the stride
+  for(int s = 1; s < MAX_SIZE; s += s){
+    //Create log of stride index column
+    *(T+logstride*num_arrays) = logstride;
+    fprintf(tp, "%1.3e, ", *(T+logstride*num_arrays));
+    //double the array length starting from min length
+    arrayindex = 0;
+    for(int n = MIN_SIZE; n <= MAX_SIZE; n += n){
+      arrayindex++;
       //perform operations if stride length is valid (otherwise populate array with 0)
       if(s <= n/2){
         //start the timer
@@ -96,8 +94,7 @@ int main(int argc, char **argv) {
             *(A+i) += 1;
           }
         }
-        //Stop Timer, and
-        // compute the average access time in K repetitions
+        // Stop timer and compute the average access time in K repetitions
         clock_gettime(CLOCK_MONOTONIC, &end);
         ntime.tv_sec = end.tv_sec - start.tv_sec;
         ntime.tv_nsec = end.tv_nsec - start.tv_nsec;
@@ -110,9 +107,11 @@ int main(int argc, char **argv) {
         // Fill in zeroes
         *(T + logstride*num_arrays + arrayindex) = 0.00;
       }
+
       //write to file
       fprintf(tp, "%1.3e, ", *(T + logstride*num_arrays + arrayindex));
     } // end of loop over strides
+    logstride++;
     fprintf(tp, "\n");
     //printf("\n");
   } // end of loop over subarrays
@@ -120,16 +119,6 @@ int main(int argc, char **argv) {
 //OH Notes:
 //Double pointer in part 3, possibly static tile declaration
 //
-
-//write to file
-
-  // for(int i = 0; i < max_exp; i++){
-  //   for(int j = 0; j < num_arrays; j++){
-  //     fprintf(tp, "%1.3e, ", *(T+i*num_arrays+j));
-  //   }
-  //   fprintf(tp, "\n");
-  // }
-
 
 
 // close file and free A

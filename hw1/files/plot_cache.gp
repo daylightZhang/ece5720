@@ -5,14 +5,14 @@ set terminal postscript eps enhanced color solid colortext 18
 # for *.pdf
 # set terminal pdf enhanced color solid
 # Set the output file name
-set output 'cache_plots.pdf'
+set output 'cache_plots.eps'
 
 # Now plot the data with lines and points
 # adjust titles and labels as needed
 set title "time per stride"
 set title font "Helvetica,18"
 set xlabel "log of stride"
-set ylabel "time"
+set ylabel "average time in nanoseconds"
 set grid
 
 # some explanations of commands
