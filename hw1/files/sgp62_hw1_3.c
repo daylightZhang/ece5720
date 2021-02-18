@@ -20,8 +20,6 @@
  * run code:   ./sgp62_hw1_3
  *
  *
- * Additions:
- * (a) add the case when matrix dimension is not divisible by block size
 */
 #define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
@@ -62,9 +60,6 @@ int main(int argc, char *argv[])
 // define matrices
    float **a, **b, **c;
 
-// a and b are set in such a way that it easy to check
-// for corretness of the product see
-// once verified that the code is correct, initialize as needed
 
 // initialize a
   a = (float **) malloc(n * sizeof(float *));
@@ -127,7 +122,6 @@ int main(int argc, char *argv[])
       // ------- loop from MIN_BLOCK, doubling the size, up to MAX_BLOCK ----
       for(int b_s = MIN_BLOCK; b_s <= MAX_BLOCK; b_s += b_s){
          // Multiply a * b = c
-
          // load subblocks of a,b,c to cache, and perform in cache multiplication
          // accumulate products
          // start the clock
@@ -141,24 +135,20 @@ int main(int argc, char *argv[])
                      tile_c[i][j] = c[i+ib][j+jb];
                   }
                }
-               //**tile_c = c[ib][jb]; // Seg fault
                // subblocks of a and b are loaded number of subblocks times
                for (int kb=0; kb<block_p; kb++){
                   // load subblock a(ib, kb) into cache as tile_a
-                  //c[ib][jb] = a[ib][kb] * b[kb][jb];
                   for(int i = 0; i < b_s; i++){
                      for(int k = 0; k < b_s; k++){
                         tile_a[i][k] = a[i+ib][k+kb];
                      }
                   }
+                  // load subblock b(kb,jb) into cache as tile_b
                   for(int i = 0; i < b_s; i++){
                      for(int j = 0; j < b_s; j++){
                         tile_b[i][j] = b[i+kb][j+jb];
                      }
                   }
-                  //**tile_a = a[ib][kb];
-                  // load subblock b(kb,jb) into cache as tile_b
-                  //**tile_b = b[kb][jb];
                   // find product tile_c(i,j)
                   for(int i = 0; i < b_s; i++){
                      for(int j = 0; j < b_s; j++){
@@ -167,9 +157,7 @@ int main(int argc, char *argv[])
                         }
                      }
                   }
-                  //**tile_c += **tile_b * **tile_c;
                   // store tile_c(i,j) back to main memory
-                  //c[ib][jb] = **tile_c;
                   for(int i = 0; i < b_s; i++){
                      for(int j = 0; j < b_s; j++){
                         c[i+ib][j+jb] = tile_c[i][j];

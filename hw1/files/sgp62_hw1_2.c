@@ -26,8 +26,6 @@ int main(int argc, char **argv){
 
 // loop and other indices
   int logsize = min_exp;
-// other parameters
-    // your code
 
 // open file to record time measurements
   FILE *fp = NULL;
@@ -46,9 +44,6 @@ int main(int argc, char **argv){
 
 // if using random matrices, set seed srand48(1);
   int n = MAX_SIZE;
-
-// for a check of correctness use special matrices
-// then set matrices to what is needed
 
 // allocate memory and initialize a 
   a = (float **) malloc(n * sizeof(float *));
@@ -98,19 +93,13 @@ int main(int argc, char **argv){
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     // calculate time taken for this size
-    // your code
     ntime.tv_sec = end.tv_sec - start.tv_sec;
     ntime.tv_nsec = end.tv_nsec - start.tv_nsec;
     float diff = ntime.tv_sec * BILLION + ntime.tv_nsec;
 
-    // record absolute time or
-    // scale by the number of operation which is loop^3, otherwise set to 1
-    // your code
-
     // write to file
     fprintf(fp, "%1.3e, ", diff);
     fprintf(fp, "\n");
-    // your code
   }
 
   fclose(fp); free(a); free(b); free(c);

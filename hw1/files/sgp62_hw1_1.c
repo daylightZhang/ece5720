@@ -116,11 +116,6 @@ int main(int argc, char **argv) {
     //printf("\n");
   } // end of loop over subarrays
 
-//OH Notes:
-//Double pointer in part 3, possibly static tile declaration
-//
-
-
 // close file and free A
   fclose(tp); free(A); free(T);
 
