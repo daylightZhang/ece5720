@@ -32,7 +32,7 @@
 // for benchmarking various sizes of matrices and blocks
 // set sizes here, otherwise read from the command line
 # define min_exp     6
-# define max_exp     10
+# define max_exp     13
 # define MIN_SIZE    1<<min_exp
 # define MAX_SIZE    1<<max_exp
 # define MIN_BLOCK   1<<3

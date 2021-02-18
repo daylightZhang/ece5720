@@ -16,7 +16,7 @@ set key right top
 
 N = 4;
 plot for [i=2:N] "tile.csv" u (column(1)):(column(i)) w lp\
-     lw 3 title "bs-".(i)
+     lw 3 title "bs-".(i+1)
 
 #plot "tile.csv" u 1:2 w lp lw 3 title 'length1', \
      #'' u 1:3 w lp lw 3 title 'length2', \
