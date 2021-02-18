@@ -14,14 +14,18 @@
 #include <time.h>
 
 // set range for testing
-# define MIN_SIZE    1<<6
-# define MAX_SIZE    1<<10
+# define min_exp     6
+# define max_exp     10
+# define MIN_SIZE    1<<min_exp
+# define MAX_SIZE    1<<max_exp
 # define BILLION     1000000000L
+
+
 
 int main(int argc, char **argv){
 
 // loop and other indices
-    // your code
+  int logsize = min_exp;
 // other parameters
     // your code
 
@@ -41,60 +45,72 @@ int main(int argc, char **argv){
   printf("resolution of CLOCK_MONOTONIC is %ld ns\n", start.tv_nsec);
 
 // if using random matrices, set seed srand48(1);
-  n = MAX_SIZE;
+  int n = MAX_SIZE;
 
 // for a check of correctness use special matrices
 // then set matrices to what is needed
 
 // allocate memory and initialize a 
   a = (float **) malloc(n * sizeof(float *));
-  for(i = 0; i < n; i++) {
+  for(int i = 0; i < n; i++) {
       a[i] = (float *) malloc(n * sizeof(float));
-      for(j = 0; j < n; j++) {
+      for(int j = 0; j < n; j++) {
           a[i][j] = 1.0*i;
       }
   }
 // allocate memory and initialize b 
   b = (float **) malloc(n * sizeof(float *));
-  for(i = 0; i < n; i++) {
+  for(int i = 0; i < n; i++) {
       b[i] = (float *) malloc(n * sizeof(float));
-      for(j = 0; j < n; j++) {
+      for(int j = 0; j < n; j++) {
           b[i][j] = 1.0*j;
       }
   }
 
 // allocate memory for c 
-    // your code
+  c = (float **) malloc(n * sizeof(float *));
+  for(int i = 0; i < n; i++){
+    c[i] = (float *) malloc(n * sizeof(float));
+    for(int j = 0; j < n; j++) {
+          c[i][j] = 1.0;
+      }
+  }
 
 // ------ loop from MIN_SIZE, doubling the size, up to MAX_SIZE -----
 
-  // start clock
-  clock_gettime(CLOCK_MONOTONIC, &start);
+  for(int n = MIN_SIZE; n <= MAX_SIZE; n += n){
 
-  // your code
+    // start clock
+    fprintf(fp, "%d, ", logsize);
+    logsize++;
+    clock_gettime(CLOCK_MONOTONIC, &start);
 
-  // stop clock
-  clock_gettime(CLOCK_MONOTONIC, &end);
-
-  // calculate time taken for this size
-  // your code
-
-  // record absolute time or
-  // scale by the number of operation which is loop^3, otherwise set to 1
-  // your code
-
-  // write to file
-  // your code
-
-
-// for sanity check print 8 by 8 upper left submatrix of the product c
-// remove for the final code
-  printf("size = %4d time = %lf \n",loop, time);
-  for(i = 0; i < 8; i++) {
-    for(j = 0; j < 8; j++) {
-      printf("%8.2e  ",c[i][j]);
+    // your code
+    for(int i = 0; i < n; i++){
+      for(int j = 0; j < n; j++){
+        for(int k = 0; k < n; k++){
+          c[i][j] += a[i][k] * b[k][j];
+        }
+      }
     }
-    printf("\n");
+
+    // stop clock
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    // calculate time taken for this size
+    // your code
+    ntime.tv_sec = end.tv_sec - start.tv_sec;
+    ntime.tv_nsec = end.tv_nsec - start.tv_nsec;
+    float diff = ntime.tv_sec * BILLION + ntime.tv_nsec;
+
+    // record absolute time or
+    // scale by the number of operation which is loop^3, otherwise set to 1
+    // your code
+
+    // write to file
+    fprintf(fp, "%1.3e, ", diff);
+    fprintf(fp, "\n");
+    // your code
   }
 
   fclose(fp); free(a); free(b); free(c);
