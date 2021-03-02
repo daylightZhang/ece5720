@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
         pthread_create(&threads[t], NULL, triangularize, (void *)t);
       }
 
-// terminate threads
+// terminate threads --WTF do you mean
 
 // stop timer
       gettimeofday(&end, NULL);
@@ -166,14 +166,16 @@ int main(int argc, char *argv[]) {
       el_time = temptime.tv_sec * MILLION + temptime.tv_usec;
 
 // barrier synchronization 
-
+      pthread_barrier_wait(&barrier);
 // write execution time to the file
-
+      fprintf(fp, "%1.3e, ", el_time);
 // backsubstitution, A is now upper triangular, b has changed too
 
 // activate threads for backsubstitution 
-
-// terminate threads
+      for(int t = 0; t < num_thrs; t++){
+        pthread_create(&threads[t], NULL, backSolve, (void *)t);
+      }
+// terminate threads -- Bruh what
 
 // stop timer
       gettimeofday(&end, NULL);
@@ -195,7 +197,8 @@ int main(int argc, char *argv[]) {
       temptime.tv_usec = end.tv_usec - start.tv_usec;
       el_time = temptime.tv_sec * MILLION + temptime.tv_usec;
 // check the residual error
-
+      float res_error;
+      fprintf("Residual Error: %1.3e, ", error_check(A,x,b,N,Nrhs,res_error));
       free(A); free(b); free(x);
 
     } // end of num_thrs loop <-------------------
@@ -295,6 +298,8 @@ void *backSolve(void *arg){
 }
 
 float error_check(float** A, float** x, float** b, int N, int nrhs, float res_error){
+
+  //res_error argument? Where to store/output result?
 
 /************************************************************************ 
  * compute residual r = b - A*x, compute ||r||_2 = sqrt(sum_i(r[i]*r[i]))
