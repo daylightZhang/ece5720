@@ -61,6 +61,7 @@
 # define MAX_THRS    8           // max size of a tile
 # define Nrhs        256         // number of rhs vectors
 # define BILLION 1000000000L
+# define MILLION 1000000L
 
 // can be used when N is not divisible by num_thrs
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -97,7 +98,7 @@ int main(int argc, char *argv[]) {
   fp = fopen("Gauss_solver.csv", "w");
 
 /********* timing related declarations **********************/
-  struct timeval start, end;     // start and stop timer
+  struct timeval start, end, temptime;     // start and stop timer
   float el_time;                 // elapsed time
 
 
@@ -109,26 +110,33 @@ int main(int argc, char *argv[]) {
 
 /********* thread related declarations **********************/
 // redefined after each pass in the num_thrs loop
-      pthread_t thread[num_thrs];
+      pthread_t threads[num_thrs];
       pthread_barrier_init(&barrier, NULL, num_thrs);
 
 // Allocate memory for A
       float **A = (float **)malloc(N*sizeof(float*));
-      for (q=0; q < N; q++)
+      for (int q=0; q < N; q++)
         A[q] = (float*)malloc(N*sizeof(float));
 
 // Allocate memory for b and x, 
 // for Nrhs = 1 a single rhs, for Nrhs = N for inversion
       float** b = (float**) malloc(sizeof(float*)*Nrhs);
-      for (q=0; q < N; q++)
+      for (int q=0; q < N; q++)
         b[q] = (float*)malloc(N*sizeof(float));
 
       float** x = (float**) malloc(sizeof(float*)*Nrhs);
-      for (q=0; q < N; q++)
+      for (int q=0; q < N; q++)
         x[q] = (float*)malloc(N*sizeof(float));
 
 // set members in thread_data to pass to threads 
 // like thread_data.A = A, etc.
+      thread_data.A = A;
+      thread_data.b = b;
+      thread_data.x = x;
+      thread_data.N = N;
+      thread_data.nrhs = Nrhs;
+      thread_data.thrs_used = num_thrs;
+      
 
 // used to pass the thread ids to the pthread function, 
       int *index = malloc (num_thrs*sizeof (uintptr_t));
@@ -140,14 +148,22 @@ int main(int argc, char *argv[]) {
       data_A_b(N,A,b);
 
 // start timer
+      gettimeofday(&start, NULL);
 
 // activate threads for triangularization of A and update of b
+      for(int t = 0; t < num_thrs; t++){
+        pthread_create(&threads[t], NULL, triangularize, (void *)t);
+      }
 
 // terminate threads
 
 // stop timer
+      gettimeofday(&end, NULL);
 
 // get triangularization execution time 
+      temptime.tv_sec = end.tv_sec - start.tv_sec;
+      temptime.tv_usec = end.tv_usec - start.tv_usec;
+      el_time = temptime.tv_sec * MILLION + temptime.tv_usec;
 
 // barrier synchronization 
 
@@ -160,6 +176,8 @@ int main(int argc, char *argv[]) {
 // terminate threads
 
 // stop timer
+      gettimeofday(&end, NULL);
+      
 
 /* sanity check, to see whether the right solution is found
       if (N <= 8){
@@ -173,7 +191,9 @@ int main(int argc, char *argv[]) {
 */
 
 // get the total execution time
-
+      temptime.tv_sec = end.tv_sec - start.tv_sec;
+      temptime.tv_usec = end.tv_usec - start.tv_usec;
+      el_time = temptime.tv_sec * MILLION + temptime.tv_usec;
 // check the residual error
 
       free(A); free(b); free(x);
