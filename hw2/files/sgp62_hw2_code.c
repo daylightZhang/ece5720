@@ -120,13 +120,13 @@ int main(int argc, char *argv[]) {
 
 // Allocate memory for b and x, 
 // for Nrhs = 1 a single rhs, for Nrhs = N for inversion
-      float** b = (float**) malloc(sizeof(float*)*Nrhs);
+      float** b = (float**) malloc(sizeof(float*)*N);
       for (int q=0; q < N; q++)
-        b[q] = (float*)malloc(N*sizeof(float));
+        b[q] = (float*)malloc(Nrhs*sizeof(float));
 
-      float** x = (float**) malloc(sizeof(float*)*Nrhs);
+      float** x = (float**) malloc(sizeof(float*)*N);
       for (int q=0; q < N; q++)
-        x[q] = (float*)malloc(N*sizeof(float));
+        x[q] = (float*)malloc(Nrhs*sizeof(float));
 
 // set members in thread_data to pass to threads 
 // like thread_data.A = A, etc.
@@ -155,7 +155,10 @@ int main(int argc, char *argv[]) {
         pthread_create(&threads[t], NULL, triangularize, (void *)t);
       }
 
-// terminate threads --WTF do you mean
+// terminate threads --join???
+      for (int i=0; i < num_thrs; i++) {
+        pthread_join(threads[i], NULL);
+      }
 
 // stop timer
       gettimeofday(&end, NULL);
@@ -175,7 +178,10 @@ int main(int argc, char *argv[]) {
       for(int t = 0; t < num_thrs; t++){
         pthread_create(&threads[t], NULL, backSolve, (void *)t);
       }
-// terminate threads -- Bruh what
+// terminate threads -- join threads maybe?
+      for (int i=0; i < num_thrs; i++) {
+        pthread_join(threads[i], NULL);
+      }
 
 // stop timer
       gettimeofday(&end, NULL);
@@ -247,14 +253,35 @@ void data_A_b(int N, float** A, float** b){
 /* create b, either as columns of the identity matrix, or */
 /* when Nrhs = 1, assume x all 1s and set b = A*x         */
 
+  if(Nrhs == 1){
+    for(int i = 0; i < N; i++){
+      for(int k = 0; k < N; k++){
+        b[i][0] += A[i][k];
+      }
+    }
+  }
+  else{
+    for(int i = 0; i < N; i++){
+      for(int k = 0; k < N; k++){
+        b[i][k] = (i == k)? 1.0 : 0.0;
+      }
+    }
+  }
+
 }
 
 void *triangularize(void *arg) {
   int myid = *((int*)arg);
-  int i, piv_indx, thrs_used;
+  int i, piv_indx, thrs_used, N;
   /* other variables */
+
                              
 // copy from global thread_data to local data
+  N = thread_data.N;
+  thrs_used = thread_data.thrs_used;
+  float **A = thread_data.A;
+  float **b = thread_data.b;
+  float **x = thread_data.x;
 
 // thread myid finds index piv_indx of pivot row in column i
 // and next swaps rows i and  piv_indx 
@@ -312,5 +339,19 @@ float error_check(float** A, float** x, float** b, int N, int nrhs, float res_er
  *************************************************************************/
 
    return res_error*
+}
+
+void printData(int N, double** A){
+  if (N <= 16){
+    for (int x=0; x<N; x++){
+      printf("| ");
+      for(int y=0; y<N; y++)
+        printf("% 5.2e ", A[x][y]);
+      printf("|\n");
+      }
+    }
+  else{
+    printf("\nMatrix and vector too large to print out.\n");
+  }
 }
 
