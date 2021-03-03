@@ -31,9 +31,18 @@ void data_A_b(int N, float** A, float** b){
 
   for (i=0; i<N; i++){
     for (j=0; j<N; j++)
-      A[i][j] = 1.0;
+      A[i][j] = j-i;
 
   }
+  
+  // for(i = 0; i<N; i++) {
+  //   int piv_indx = i; 
+  //   for(int j = i; j < N; j++){
+  //     piv_indx = (A[j][i] > A[piv_indx][i]) ? j : piv_indx;
+  //   }
+  //     /* your code for swapping rows i and piv_indx in A and b */
+  // }
+
 
 
 

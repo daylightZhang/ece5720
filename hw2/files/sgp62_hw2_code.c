@@ -282,15 +282,35 @@ void *triangularize(void *arg) {
   float **A = thread_data.A;
   float **b = thread_data.b;
   float **x = thread_data.x;
+  int nrhs = thread_data.nrhs;
 
 // thread myid finds index piv_indx of pivot row in column i
 // and next swaps rows i and  piv_indx 
-
+  piv_indx = 0;
   for(i = 0; i<N; i++) {
     if ((i%thrs_used) == (int) myid) {
-       /* your code for finding pivot */
-       /* your code for swapping rows i and piv_indx in A and b */
+      /* your code for finding pivot */
+      int piv_indx = i;
+      for(int j = i; j < N; j++){
+        piv_indx = (A[j][i] > A[piv_indx][i]) ? j : piv_indx;
       }
+      /* your code for swapping rows i and piv_indx in A and b */
+      for(int k = 0; k < N; k++){
+        float temp = A[i][k];
+        A[i][k] = A[piv_indx][k];
+        A[piv_indx][k] = temp;
+        if(nrhs != 1){
+          temp = b[i][k];
+          b[i][k] = b[piv_indx][k];
+          b[piv_indx][k] = temp;
+        }
+        else if(k == 0){
+          temp = b[i][k];
+          b[i][k] = b[piv_indx][k];
+          b[piv_indx][k] = temp;
+        }
+      }
+    }
 
 // all threads wait until swapping of row i and piv_indx are done
 
@@ -341,17 +361,4 @@ float error_check(float** A, float** x, float** b, int N, int nrhs, float res_er
    return res_error*
 }
 
-void printData(int N, double** A){
-  if (N <= 16){
-    for (int x=0; x<N; x++){
-      printf("| ");
-      for(int y=0; y<N; y++)
-        printf("% 5.2e ", A[x][y]);
-      printf("|\n");
-      }
-    }
-  else{
-    printf("\nMatrix and vector too large to print out.\n");
-  }
-}
 
