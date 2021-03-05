@@ -55,11 +55,13 @@
 //#include "pthreadbarrier.h" Include error?
 
 // set dimensions for testing
-# define MIN_DIM     1<<8        // min dimension of the matrices
-# define MAX_DIM     1<<8        // max dimension
+# define MIN_EXP     7
+# define MAX_EXP     11 //Used 11
+# define MIN_DIM     1<<MIN_EXP        // min dimension of the matrices
+# define MAX_DIM     1<<MAX_EXP        // max dimension
 # define MIN_THRS    1           // min size of a tile
 # define MAX_THRS    8           // max size of a tile
-# define Nrhs        256         // number of rhs vectors
+# define Nrhs        1         // number of rhs vectors -USE TO CHANGE MODE between Inverse or Gauss Solver
 # define BILLION 1000000000L
 # define MILLION 1000000L
 
@@ -100,11 +102,13 @@ int main(int argc, char *argv[]) {
 /********* timing related declarations **********************/
   struct timeval start, end, temptime;     // start and stop timer
   float el_time;                 // elapsed time
+  int ncount = MIN_EXP;
 
 
 // ---- loop over matrix dimensions N, doubling the sizes at each pass ---
   for(int N = MIN_DIM; N <= MAX_DIM; N += N){
-
+    fprintf(fp, "%1.3e, ", (float) ncount);
+    ncount++;
 // ---- loop over num_thrs, doubling the sizes at each pass ----
     for(int num_thrs = MIN_THRS; num_thrs <= MAX_THRS; num_thrs += num_thrs){
 
@@ -122,11 +126,13 @@ int main(int argc, char *argv[]) {
 // for Nrhs = 1 a single rhs, for Nrhs = N for inversion
       float** b = (float**) malloc(sizeof(float*)*N);
       for (int q=0; q < N; q++)
-        b[q] = (float*)malloc(Nrhs*sizeof(float));
+        b[q] = (float*)malloc(N*sizeof(float));
 
       float** x = (float**) malloc(sizeof(float*)*N);
       for (int q=0; q < N; q++)
-        x[q] = (float*)malloc(Nrhs*sizeof(float));
+        x[q] = (float*)malloc(N*sizeof(float));
+
+
 
 // set members in thread_data to pass to threads 
 // like thread_data.A = A, etc.
@@ -134,12 +140,12 @@ int main(int argc, char *argv[]) {
       thread_data.b = b;
       thread_data.x = x;
       thread_data.N = N;
-      thread_data.nrhs = Nrhs;
+      thread_data.nrhs = (Nrhs > 1) ? N : 1;
       thread_data.thrs_used = num_thrs;
       
 
 // used to pass the thread ids to the pthread function, 
-      int *index = malloc (num_thrs*sizeof (uintptr_t));
+      int *index = malloc (num_thrs*sizeof (intptr_t));
       for(int ii = 0; ii < num_thrs; ii++) {
         index[ii] = ii;
       }
@@ -152,13 +158,16 @@ int main(int argc, char *argv[]) {
 
 // activate threads for triangularization of A and update of b
       for(int t = 0; t < num_thrs; t++){
-        pthread_create(&threads[t], NULL, triangularize, (void *)t);
+        pthread_create(&threads[t], NULL, triangularize, &index[t]);
+
       }
 
-// terminate threads --join???
+// terminate threads
       for (int i=0; i < num_thrs; i++) {
         pthread_join(threads[i], NULL);
       }
+
+
 
 // stop timer
       gettimeofday(&end, NULL);
@@ -169,45 +178,72 @@ int main(int argc, char *argv[]) {
       el_time = temptime.tv_sec * MILLION + temptime.tv_usec;
 
 // barrier synchronization 
-      pthread_barrier_wait(&barrier);
+      //printf("Waiting at barrier in main\n");
+      //pthread_barrier_wait(&barrier);
+      //printf("Past barrier in main\n");
 // write execution time to the file
-      fprintf(fp, "%1.3e, ", el_time);
-// backsubstitution, A is now upper triangular, b has changed too
+      //fprintf(fp, "%1.3e, ", el_time);
 
+      
+// backsubstitution, A is now upper triangular, b has changed too
+      //begin timer
+      gettimeofday(&start, NULL);   
 // activate threads for backsubstitution 
+
       for(int t = 0; t < num_thrs; t++){
-        pthread_create(&threads[t], NULL, backSolve, (void *)t);
+        pthread_create(&threads[t], NULL, backSolve, &index[t]);
       }
-// terminate threads -- join threads maybe?
-      for (int i=0; i < num_thrs; i++) {
+
+
+// terminate threads
+      for (int i=0; i < num_thrs; i++) { 
         pthread_join(threads[i], NULL);
       }
 
 // stop timer
       gettimeofday(&end, NULL);
-      
 
-/* sanity check, to see whether the right solution is found
-      if (N <= 8){
+
+// sanity check, to see whether the right solution is found
+      if (N == 4){
+        printf("printing A...\n");
+        for(int i=0;i<N;i++){
+          for(int j=0;j<N;j++)
+          printf("%10.2e",A[i][j]);
+        printf("\n");
+      }
+    }
+    if (N == 4){
+        printf("printing b...\n");
+        for(int i=0;i<N;i++){
+          for(int j=0;j<N;j++)
+          printf("%10.2e",b[i][j]);
+        printf("\n");
+      }
+    }
+    if (N == 4){
         printf("printing x...\n");
-        for(i=0;i<Nrhs;i++){
-          for(j=0;j<N;j++)
+        for(int i=0;i<N;i++){
+          for(int j=0;j<N;j++)
           printf("%10.2e",x[i][j]);
         printf("\n");
       }
    }
-*/
+
+
 
 // get the total execution time
       temptime.tv_sec = end.tv_sec - start.tv_sec;
       temptime.tv_usec = end.tv_usec - start.tv_usec;
       el_time = temptime.tv_sec * MILLION + temptime.tv_usec;
+      fprintf(fp, "%1.3e, ", el_time);
+
 // check the residual error
       float res_error;
-      fprintf("Residual Error: %1.3e, ", error_check(A,x,b,N,Nrhs,res_error));
+      printf("Residual Error: %1.3e, ", error_check(A,thread_data.x,b,N,N,res_error));
       free(A); free(b); free(x);
-
     } // end of num_thrs loop <-------------------
+    fprintf(fp, "\n");
 
 
   } // end of N loop <--------------------
@@ -250,6 +286,7 @@ void data_A_b(int N, float** A, float** b){
     A[i][i] = A[i][i] + 1.0;
   }
 
+
 /* create b, either as columns of the identity matrix, or */
 /* when Nrhs = 1, assume x all 1s and set b = A*x         */
 
@@ -268,13 +305,15 @@ void data_A_b(int N, float** A, float** b){
     }
   }
 
+
 }
 
 void *triangularize(void *arg) {
   int myid = *((int*)arg);
+
   int i, piv_indx, thrs_used, N;
   /* other variables */
-
+  float p; // pivot variable
                              
 // copy from global thread_data to local data
   N = thread_data.N;
@@ -287,12 +326,13 @@ void *triangularize(void *arg) {
 // thread myid finds index piv_indx of pivot row in column i
 // and next swaps rows i and  piv_indx 
   piv_indx = 0;
-  for(i = 0; i<N; i++) {
+  for(i = 0; i<N; i++) { // N-1 or N
     if ((i%thrs_used) == (int) myid) {
+      
       /* your code for finding pivot */
-      int piv_indx = i;
+      piv_indx = i;
       for(int j = i; j < N; j++){
-        piv_indx = (A[j][i] > A[piv_indx][i]) ? j : piv_indx;
+        piv_indx = (abs(A[j][i]) > abs(A[piv_indx][i])) ? j : piv_indx;
       }
       /* your code for swapping rows i and piv_indx in A and b */
       for(int k = 0; k < N; k++){
@@ -300,31 +340,42 @@ void *triangularize(void *arg) {
         A[i][k] = A[piv_indx][k];
         A[piv_indx][k] = temp;
         if(nrhs != 1){
-          temp = b[i][k];
+          float temp2 = b[i][k];
           b[i][k] = b[piv_indx][k];
-          b[piv_indx][k] = temp;
+          b[piv_indx][k] = temp2;
         }
         else if(k == 0){
-          temp = b[i][k];
+          float temp2 = b[i][k];
           b[i][k] = b[piv_indx][k];
-          b[piv_indx][k] = temp;
+          b[piv_indx][k] = temp2;
         }
       }
     }
 
 // all threads wait until swapping of row i and piv_indx are done
-
     pthread_barrier_wait(&barrier);
 
 // rows i+1 to N can be updated independently by threads 
 // based on cyclic distribution of rows among threads
-
-   /* your code */
+    if ((i%thrs_used) == (int) myid) {
+      
+      for(int j = i+1; j < N; j++){
+        p = A[j][i] / A[i][i];
+        for(int k = 0; k < N; k++){
+          A[j][k] = A[j][k] - p * A[i][k];
+          if(nrhs != 1){
+            b[j][k] = b[j][k] - p * b[i][k];
+          }
+          else if(k==0)b[j][k] = b[j][k] - p * b[i][k];
+        }
+      }
+    }
+  
 
 // wait for all
     pthread_barrier_wait(&barrier);
   }
-    pthread_barrier_wait(&barrier);
+  pthread_barrier_wait(&barrier);
   
   return 0;
 }
@@ -334,20 +385,51 @@ void *backSolve(void *arg){
 
 // copy global thread_data to local data
 
+  int N = thread_data.N;
+  int thrs_used = thread_data.thrs_used;
+  float **A = thread_data.A;
+  float **b = thread_data.b;
+  float **x = thread_data.x;
+  int nrhs = thread_data.nrhs;
+
 // thread myid performs backsubstitution for Nrhs/thrs_used rhs
 // column cyclic distribution
 
-  for(k= myid;k < nrhs; k += thrs_used){  // loop over # rhs
 
-    /* your backsubstitution code */ 
-
+  for(int k= N-1; k >= 0; k --){  // loop over # rhs
+    if(nrhs == 1){
+      if((int) myid == 0){
+        x[k][0] = b[k][0]/A[k][k];
+        for(int j = k-1; j >= 0; j--){
+          b[j][0] = b[j][0] - A[j][k] * x[k][0];
+        }
+      }
     }
+    else{ // Matrix inversion method
+      // if ((k%thrs_used) == (int) myid) {
+      //   for(int m = k; m >= 0; m--){
+      //     x[k][m] = b[k][m]/A[k][k];
+      //     for(int j = k-1; j >= 0; j--){
+      //       b[j][m] = b[j][m] - A[j][k] * x[k][m];
+      //     }
+      //   }
+      // }
+      if ((k%thrs_used) == (int) myid) {
+        for(int i = N-1; i >= 0; i--){
+          x[i][k] = b[i][k]/A[i][i];
+          for(int j = i-1; j >= 0; j--){
+            b[j][i] = b[j][i] - A[j][i] * x[k][i];
+          }
+        }
+      }
+      //pthread_barrier_wait(&barrier);
+    }
+  }
+  
+  return 0;
 }
 
 float error_check(float** A, float** x, float** b, int N, int nrhs, float res_error){
-
-  //res_error argument? Where to store/output result?
-
 /************************************************************************ 
  * compute residual r = b - A*x, compute ||r||_2 = sqrt(sum_i(r[i]*r[i]))
  * compute ||x||_2 = sqrt(sum_i(x[i]*x[i])), 
@@ -358,7 +440,36 @@ float error_check(float** A, float** x, float** b, int N, int nrhs, float res_er
  * in double precision it should be close to 1.0e-15
  *************************************************************************/
 
-   return res_error*
+  float** r = (float**) malloc(sizeof(float*)*N);
+  for (int q=0; q < N; q++)
+    r[q] = (float*)malloc(N*sizeof(float));
+
+  for(int i = 0; i < N; i++){
+    for(int j = 0; j < N; j++){
+      for(int k = 0; k < N; k++){
+        r[i][0] += A[i][k] * x[k][0] - b[k][0];
+      }
+    }
+  }
+  float rnorm, anorm, xnorm;
+  for(int i = 0; i < N; i++){
+    rnorm += r[i][0] * r[i][0];
+    xnorm += x[i][0] * x[i][0];
+  }
+  rnorm = sqrt(rnorm);
+  xnorm = sqrt(xnorm);
+
+  for(int i = 0; i < N; i++){
+    for(int j = 0; j < N; j++){
+      anorm += A[i][j] * A[i][j];
+    }
+  }
+  anorm = sqrt(anorm);
+
+  res_error = rnorm / (anorm * xnorm);
+
+
+  return res_error;
 }
 
 

@@ -4,10 +4,10 @@ set terminal postscript eps enhanced color solid colortext 18
 set output 'gauss_plots.eps'
 
 # Now plot the data with lines and points
-set title "pthread Gauss solver"
+set title "pthread Gauss solver BackSubstitution Time, nrhs = N"
 set title font "Helvetica,18"
 set xlabel "log of matrix size"
-set ylabel "time"
+set ylabel "time in microseconds"
 set grid
 # put legend in the upper left corner
 set key left top
