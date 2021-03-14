@@ -20,7 +20,7 @@
 #define DIM 2       /* 2 or 3 dimensions                     */
 
 // position (x,y), velocity (vx,vy), acceleration (ax,ay), weight w
-typedef struct { double x, y, vx, vy, ax, ay, w; } Body;
+typedef struct { double x, y, vx, vy, ax, ay, m; } Body;
 
 // kinetic and potential energy
 typedef struct { double ke, pe; } Energy;
@@ -66,15 +66,6 @@ int main(const int argc, const char** argv) {
 
 /******************** Main loop over iterations **************/
   for (int iter = 1; iter <= nIters; iter++) {
-    #pragma omp parallel for //Force loop
-    {
-      
-    }
-
-    #pragma omp parallel for //Update loop
-    {
-
-    }
 // "half kick"
     
 // "drift"
@@ -143,5 +134,20 @@ void total_energy(Body *r, Energy *e, int n){
 
 void bodyAcc(Body *r, double dt, int n) {
 // F = G*sum_{i,j} m_i*m_j*(r_j-r_i)/||r_j-r_i||^3
-// F = m*a thus a = F/m 
+// F = m*a thus a = F/m
+  int i,j;
+  double dx, dy, d, d3;
+  #pragma omp parallel for private(i,j,dx,dy,d,d3) shared(r)
+  for(i = 0; i < n; i++){
+    for(j = 0; j < n; j++){
+      if (j != i){
+        dx = r[i].x - r[j].x;
+        dy = r[i].y - r[j].y;
+        d = sqrt(dx*dx + dy*dy); // Maybe alpha max beta min algorithm?
+        d3 = d*d*d;
+        r[i].ax -= ((G*r[i].m * r[j].m) / (d3 * (r[i].x-r[j].x))) / r[i].m;
+        r[i].ay -= ((G*r[i].m * r[j].m) / (d3 * (r[i].y-r[j].y))) / r[i].m;
+      }
+    }
+  }
 }
