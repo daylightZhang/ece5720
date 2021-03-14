@@ -56,7 +56,7 @@
 
 // set dimensions for testing
 # define MIN_EXP     7
-# define MAX_EXP     11 //Used 11
+# define MAX_EXP     13 //Used 11
 # define MIN_DIM     1<<MIN_EXP        // min dimension of the matrices
 # define MAX_DIM     1<<MAX_EXP        // max dimension
 # define MIN_THRS    1           // min size of a tile
@@ -176,11 +176,6 @@ int main(int argc, char *argv[]) {
       temptime.tv_sec = end.tv_sec - start.tv_sec;
       temptime.tv_usec = end.tv_usec - start.tv_usec;
       el_time = temptime.tv_sec * MILLION + temptime.tv_usec;
-
-// barrier synchronization 
-      //printf("Waiting at barrier in main\n");
-      //pthread_barrier_wait(&barrier);
-      //printf("Past barrier in main\n");
 // write execution time to the file
       //fprintf(fp, "%1.3e, ", el_time);
 
@@ -204,34 +199,6 @@ int main(int argc, char *argv[]) {
       gettimeofday(&end, NULL);
 
 
-// sanity check, to see whether the right solution is found
-      if (N == 4){
-        printf("printing A...\n");
-        for(int i=0;i<N;i++){
-          for(int j=0;j<N;j++)
-          printf("%10.2e",A[i][j]);
-        printf("\n");
-      }
-    }
-    if (N == 4){
-        printf("printing b...\n");
-        for(int i=0;i<N;i++){
-          for(int j=0;j<N;j++)
-          printf("%10.2e",b[i][j]);
-        printf("\n");
-      }
-    }
-    if (N == 4){
-        printf("printing x...\n");
-        for(int i=0;i<N;i++){
-          for(int j=0;j<N;j++)
-          printf("%10.2e",x[i][j]);
-        printf("\n");
-      }
-   }
-
-
-
 // get the total execution time
       temptime.tv_sec = end.tv_sec - start.tv_sec;
       temptime.tv_usec = end.tv_usec - start.tv_usec;
@@ -239,9 +206,9 @@ int main(int argc, char *argv[]) {
       fprintf(fp, "%1.3e, ", el_time);
 
 // check the residual error
-      float res_error;
-      printf("Residual Error: %1.3e, ", error_check(A,thread_data.x,b,N,N,res_error));
-      free(A); free(b); free(x);
+      //float res_error;
+      //printf("Residual Error: %1.3e, ", error_check(A,thread_data.x,b,N,N,res_error));
+      //free(A); free(b); free(x);
     } // end of num_thrs loop <-------------------
     fprintf(fp, "\n");
 
@@ -406,14 +373,6 @@ void *backSolve(void *arg){
       }
     }
     else{ // Matrix inversion method
-      // if ((k%thrs_used) == (int) myid) {
-      //   for(int m = k; m >= 0; m--){
-      //     x[k][m] = b[k][m]/A[k][k];
-      //     for(int j = k-1; j >= 0; j--){
-      //       b[j][m] = b[j][m] - A[j][k] * x[k][m];
-      //     }
-      //   }
-      // }
       if ((k%thrs_used) == (int) myid) {
         for(int i = N-1; i >= 0; i--){
           x[i][k] = b[i][k]/A[i][i];
@@ -439,7 +398,7 @@ float error_check(float** A, float** x, float** b, int N, int nrhs, float res_er
  * in single precision it should be close to 1.0e-6
  * in double precision it should be close to 1.0e-15
  *************************************************************************/
-
+  printf("Here\n");
   float** r = (float**) malloc(sizeof(float*)*N);
   for (int q=0; q < N; q++)
     r[q] = (float*)malloc(N*sizeof(float));
