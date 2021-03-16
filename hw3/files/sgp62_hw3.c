@@ -12,14 +12,14 @@
 #define MAX_Y 50 
 #define MIN_X 1     /* between MIN and MAX position          */
 #define MIN_Y 1  
-#define MAX_W 60    /* the weights w_i are random            */
-#define MIN_W 1     /* between MIN and MAX wieght            */
+#define MAX_M 6    /* the weights w_i are random            */ //Changed to Mass, W/g = M
+#define MIN_M 0.1     /* between MIN and MAX wieght         */ //Changed to Mass
 #define MAX_V 20    /* the velocities (vx_i,vy_i) are random */
 #define MIN_V 0     /* between MIN and MAX velocity          */
 #define G 0.1       /* gravitational constant                */
 #define DIM 2       /* 2 or 3 dimensions                     */
 
-// position (x,y), velocity (vx,vy), acceleration (ax,ay), weight w
+// position (x,y), velocity (vx,vy), acceleration (ax,ay), weight w(SWITCHED TO MASS M)
 typedef struct { double x, y, vx, vy, ax, ay, m; } Body;
 
 // kinetic and potential energy
@@ -47,11 +47,20 @@ int main(const int argc, const char** argv) {
   const int nIters = 1000;  // simulation iterations
   double totalTime, avgTime;
 
-/******************** (0) initialize N-body ******************/
   double *Bbuf = (double*)malloc(nBodies*sizeof(Body));
   double *Ebuf = (double*)malloc(sizeof(Energy));
   Body *r = (Body*) Bbuf;
   Energy *e = (Energy*)Ebuf;
+
+/******************** (0) initialize N-body ******************/
+  for(int k = 0; k < nBodies; k++){
+    r[k].x = rand() % MAX_X + MIN_X;
+    r[k].y = rand() % MAX_Y + MIN_Y;
+    r[k].vx = (double) (rand() % MAX_V) + MIN_V;
+    r[k].vy = (double) (rand() % MAX_V) + MIN_V;
+    r[k].ax = r[k].ay = 0;
+    r[k].m = (double) (rand() % MAX_M) + MIN_M;
+  }
 
 /******************** (1) Get center of momentum *******************/
   center_of_momentum(r, nBodies);
