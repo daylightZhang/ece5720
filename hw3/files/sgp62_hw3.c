@@ -148,17 +148,27 @@ void center_of_momentum(Body *r, int n){
 void total_energy(Body *r, Energy *e, int n){
 // kinetic energy, (*e).ke = m*v^2/2;
 // potential energy : (*e).pe = -\sum_{1\leq i < j \leq N}G*m_i*m_j/||r_j-r_i||
-  int i;
-  double pe, ke;
-  #pragma omp parallel for private(pe, ke) shared(e, r)
+  int i,j;
+  double pe, ke, dx, dy;
+  #pragma omp parallel for private(i, j, pe, ke, dx, dy) shared(e, r)
   {
     for(i=0; i < n; i++){
       ke = 0.5 * r[i].m * ((r[i].vx * r[i].vx) + (r[i].vy * r[i].vy));
       #pragma omp critical
       {
-        e[0].ke += ke; // e[0] or e->?
+        e[0].ke += ke;
       }
-
+      for(j = 0; j < n; j++){
+        if(i != j){
+          dx = r[i].x - r[j].x;
+          dy = r[i].y - r[j].y;
+          pe -= G * (r[i].m * r[j].m) / (sqrt(dx*dx+dy*dy));
+        }
+      }
+      #pragma omp critical
+      {
+        e[0].pe += pe;
+      }
     }
   }
 }
