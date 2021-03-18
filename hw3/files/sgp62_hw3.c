@@ -33,7 +33,7 @@ int main(const int argc, const char** argv) {
 
   // record positions and velocities
   FILE *pvp = NULL;            
-  pvp = fopen("pos_vel.txt", "w");
+  pvp = fopen("pos_vel.csv", "w");
 
   // file to record energy (to check for correctness)
   FILE *tp = NULL;            
@@ -41,7 +41,8 @@ int main(const int argc, const char** argv) {
   
   int i;
   int nBodies;
-  nBodies = atoi(argv[1]);
+  //nBodies = atoi(argv[1]);
+  nBodies = NUM_BODY;
 
   const double dt = 0.01f; // time step
   const int nIters = 1000;  // simulation iterations
@@ -75,23 +76,41 @@ int main(const int argc, const char** argv) {
 
 /******************** Main loop over iterations **************/
   for (int iter = 1; iter <= nIters; iter++) {
-// "half kick"
+    fprintf(pvp, "%d, ", iter);
+    #pragma omp parallel for private(i) shared(r, dt, nBodies)
+    {
+      for(i = 0; i < nBodies; i++){
+        // "half kick"
+        r[i].vx += (dt/2) * r[i].ax;
+        r[i].vy += (dt/2) * r[i].ay;
+        // "drift"
+        r[i].x += dt*r[i].vx;
+        r[i].y += dt*r[i].vy;
+      }
+    }
+    //Update accelerations based on new positions
+    bodyAcc(r, dt, nBodies);
+    #pragma omp parallel for private(i) shared(r, dt, nBodies)
+    {
+      for(i=0; i < nBodies; i++){
+        // "half kick"
+        r[i].vx += (dt/2) * r[i].ax;
+        r[i].vy += (dt/2) * r[i].ay;
+      }
+    }
+    // record the position and velocity
+    for(int j = 0; j < nBodies; j++){
+      fprintf(pvp, "%10.3e, %10.3e, %10.3e, %10.3e, ",r[j].x, r[j].y, r[j].vx, r[j].vy);
+    }
     
-// "drift"
 
-//Check reflections in box (reverse velocity)
+//Check reflections in box (reverse velocity) Optional
 /*
 if (x[0] < XMIN) reflect(XMIN, x, v, a);
 if (x[0] > XMAX) reflect(XMAX, x, v, a);
 if (x[1] < YMIN) reflect(YMIN, x, v, a);
 if (x[1] > YMAX) reflect(YMAX, x, v, a);
 */
-
-// update acceleration
-
-// "half kick"
-
-// record the position and velocity
 
 // sanity check
     total_energy(r, e, nBodies);
@@ -117,14 +136,14 @@ if (x[1] > YMAX) reflect(YMAX, x, v, a);
 /* Close the pipe */
   pclose(fp); 
 
-/* on Mac only */
-  FILE *fpo = NULL;
-  if (( fpo = popen("open plot_nbody.eps", "w")) == NULL)
-  {
-    perror("popen");
-    exit(1);
-  }
-  pclose(fpo);
+// /* on Mac only */
+//   FILE *fpo = NULL;
+//   if (( fpo = popen("open plot_nbody.eps", "w")) == NULL)
+//   {
+//     perror("popen");
+//     exit(1);
+//   }
+//   pclose(fpo);
 
   return(0);
 
@@ -142,7 +161,22 @@ void center_of_momentum(Body *r, int n){
  https://en.wikipedia.org/wiki/N-body_problem
  https://en.wikipedia.org/wiki/Center-of-momentum_frame
 */
-  
+  double Vcx, Vcy, topsumx, topsumy, bottomsum;
+  for(int i = 0; i < n; i++){
+    topsumx += r[i].m * r[i].vx;
+    topsumy += r[i].m * r[i].vy;
+    bottomsum += r[i].m; 
+  }
+  Vcx = topsumx / bottomsum;
+  Vcy = topsumy / bottomsum;
+  int i;
+  #pragma omp parallel for private(i) shared(r)
+  {
+    for(i=0; i < n; i++){
+      r[i].vx -= Vcx;
+      r[i].vy -= Vcy;
+    }
+  }
 }
 
 void total_energy(Body *r, Energy *e, int n){
@@ -150,14 +184,10 @@ void total_energy(Body *r, Energy *e, int n){
 // potential energy : (*e).pe = -\sum_{1\leq i < j \leq N}G*m_i*m_j/||r_j-r_i||
   int i,j;
   double pe, ke, dx, dy;
-  #pragma omp parallel for private(i, j, pe, ke, dx, dy) shared(e, r)
+  #pragma omp parallel for private(i, j, pe, ke, dx, dy) shared(e, r) 
   {
     for(i=0; i < n; i++){
       ke = 0.5 * r[i].m * ((r[i].vx * r[i].vx) + (r[i].vy * r[i].vy));
-      #pragma omp critical
-      {
-        e[0].ke += ke;
-      }
       for(j = 0; j < n; j++){
         if(i != j){
           dx = r[i].x - r[j].x;
@@ -167,13 +197,14 @@ void total_energy(Body *r, Energy *e, int n){
       }
       #pragma omp critical
       {
+        e[0].ke += ke;
         e[0].pe += pe;
       }
     }
   }
 }
 
-void bodyAcc(Body *r, double dt, int n) {
+void bodyAcc(Body *r, double dt, int n) {//Is dt actually necessary?
 // F = G*sum_{i,j} m_i*m_j*(r_j-r_i)/||r_j-r_i||^3
 // F = m*a thus a = F/m
   int i,j;
