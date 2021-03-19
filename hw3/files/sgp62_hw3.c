@@ -25,7 +25,7 @@ typedef struct { double x, y, vx, vy, ax, ay, m; } Body;
 // kinetic and potential energy
 typedef struct { double ke, pe; } Energy;
 
-void bodyAcc(Body *r, double dt, int n);      // computes  a
+void bodyAcc(Body *r, int n);      // computes  a
 void total_energy(Body *r, Energy *e, int n); // kinetic and potential
 void center_of_momentum(Body *r, int n);      // center of momentum
 
@@ -55,12 +55,12 @@ int main(const int argc, const char** argv) {
 
 /******************** (0) initialize N-body ******************/
   for(int k = 0; k < nBodies; k++){
-    r[k].x = rand() % MAX_X + MIN_X;
-    r[k].y = rand() % MAX_Y + MIN_Y;
-    r[k].vx = (double) (rand() % MAX_V) + MIN_V;
-    r[k].vy = (double) (rand() % MAX_V) + MIN_V;
+    r[k].x = (((double) rand()) / RAND_MAX) * MAX_X + MIN_X;
+    r[k].y = (((double) rand()) / RAND_MAX) * MAX_Y + MIN_Y;
+    r[k].vx = (((double) rand()) / RAND_MAX) * MAX_V + MIN_V;
+    r[k].vy = (((double) rand()) / RAND_MAX) * MAX_V + MIN_V;
     r[k].ax = r[k].ay = 0;
-    r[k].m = (double) (rand() % MAX_M) + MIN_M;
+    r[k].m = (((double) rand()) / RAND_MAX) * MAX_M + MIN_M;
   }
 
 /******************** (1) Get center of momentum *******************/
@@ -70,54 +70,52 @@ int main(const int argc, const char** argv) {
   total_energy(r, e, nBodies);
 
 /******************** (3) Initial acceleration *****************/
-  bodyAcc(r, dt, nBodies);            
+  bodyAcc(r, nBodies);            
 
   totalTime = omp_get_wtime();
 
+  fprintf(tp,"%4d %10.3e %10.3e %10.3e\n",
+        0,(*e).pe,(*e).ke, (*e).pe-(*e).ke);
+
 /******************** Main loop over iterations **************/
   for (int iter = 1; iter <= nIters; iter++) {
-    fprintf(pvp, "%d, ", iter);
-    #pragma omp parallel for private(i) shared(r, dt, nBodies)
-    {
-      for(i = 0; i < nBodies; i++){
-        // "half kick"
-        r[i].vx += (dt/2) * r[i].ax;
-        r[i].vy += (dt/2) * r[i].ay;
-        // "drift"
-        r[i].x += dt*r[i].vx;
-        r[i].y += dt*r[i].vy;
-      }
-    }
-    //Update accelerations based on new positions
-    bodyAcc(r, dt, nBodies);
-    #pragma omp parallel for private(i) shared(r, dt, nBodies)
-    {
-      for(i=0; i < nBodies; i++){
-        // "half kick"
-        r[i].vx += (dt/2) * r[i].ax;
-        r[i].vy += (dt/2) * r[i].ay;
-      }
-    }
-    // record the position and velocity
-    for(int j = 0; j < nBodies; j++){
-      fprintf(pvp, "%10.3e, %10.3e, %10.3e, %10.3e, ",r[j].x, r[j].y, r[j].vx, r[j].vy);
-    }
-    
-
-//Check reflections in box (reverse velocity) Optional
-/*
-if (x[0] < XMIN) reflect(XMIN, x, v, a);
-if (x[0] > XMAX) reflect(XMAX, x, v, a);
-if (x[1] < YMIN) reflect(YMIN, x, v, a);
-if (x[1] > YMAX) reflect(YMAX, x, v, a);
-*/
-
-// sanity check
     total_energy(r, e, nBodies);
     if (iter%10 == 0){
       fprintf(tp,"%4d %10.3e %10.3e %10.3e\n",
              iter,(*e).pe,(*e).ke, (*e).pe-(*e).ke);
     }
+    fprintf(pvp, "%d, ", iter);
+    #pragma omp parallel for private(i) shared(r)
+    for(i = 0; i < nBodies; i++){
+      // "half kick"
+      r[i].vx += (dt/2) * r[i].ax;
+      r[i].vy += (dt/2) * r[i].ay;
+      // "drift"
+      r[i].x += dt*r[i].vx;
+      r[i].y += dt*r[i].vy;
+    }
+    //Update accelerations based on new positions
+    bodyAcc(r, nBodies);
+    #pragma omp parallel for private(i) shared(r)
+    for(i=0; i < nBodies; i++){
+      // "half kick"
+      r[i].vx += (dt/2) * r[i].ax;
+      r[i].vy += (dt/2) * r[i].ay;
+    }
+    
+    //record the position and velocity
+    for(int j = 0; j < nBodies; j++){
+      fprintf(pvp, "%10.3e, %10.3e, %10.3e, %10.3e, ",r[j].x, r[j].y, r[j].vx, r[j].vy);
+    }
+    
+
+
+// sanity check
+    // total_energy(r, e, nBodies);
+    // if (iter%10 == 0){
+    //   fprintf(tp,"%4d %10.3e %10.3e %10.3e\n",
+    //          iter,(*e).pe,(*e).ke, (*e).pe-(*e).ke);
+    // }
   }
   
   totalTime = omp_get_wtime() - totalTime;
@@ -171,11 +169,9 @@ void center_of_momentum(Body *r, int n){
   Vcy = topsumy / bottomsum;
   int i;
   #pragma omp parallel for private(i) shared(r)
-  {
-    for(i=0; i < n; i++){
-      r[i].vx -= Vcx;
-      r[i].vy -= Vcy;
-    }
+  for(i=0; i < n; i++){
+    r[i].vx -= Vcx;
+    r[i].vy -= Vcy;
   }
 }
 
@@ -183,28 +179,29 @@ void total_energy(Body *r, Energy *e, int n){
 // kinetic energy, (*e).ke = m*v^2/2;
 // potential energy : (*e).pe = -\sum_{1\leq i < j \leq N}G*m_i*m_j/||r_j-r_i||
   int i,j;
-  double pe, ke, dx, dy;
-  #pragma omp parallel for private(i, j, pe, ke, dx, dy) shared(e, r) 
-  {
-    for(i=0; i < n; i++){
-      ke = 0.5 * r[i].m * ((r[i].vx * r[i].vx) + (r[i].vy * r[i].vy));
-      for(j = 0; j < n; j++){
-        if(i != j){
-          dx = r[i].x - r[j].x;
-          dy = r[i].y - r[j].y;
-          pe -= G * (r[i].m * r[j].m) / (sqrt(dx*dx+dy*dy));
-        }
-      }
-      #pragma omp critical
-      {
-        e[0].ke += ke;
-        e[0].pe += pe;
+  
+  (*e).ke = 0;
+  (*e).pe = 0;
+  #pragma omp parallel for private(i,j) shared(e, r) 
+  for(i=0; i < n; i++){
+    double pe, ke, dx, dy;
+    ke = 0.5 * r[i].m * ((r[i].vx * r[i].vx) + (r[i].vy * r[i].vy));
+    for(j = 0; j < n; j++){
+      if(i != j){
+        dx = r[i].x - r[j].x;
+        dy = r[i].y - r[j].y;
+        pe -= G * (r[i].m * r[j].m) / (sqrt(dx*dx+dy*dy));
       }
     }
+    #pragma omp critical
+    {
+      (*e).ke += ke;
+      (*e).pe += pe;
+    } 
   }
 }
 
-void bodyAcc(Body *r, double dt, int n) {//Is dt actually necessary?
+void bodyAcc(Body *r, int n) {//Is dt actually necessary?
 // F = G*sum_{i,j} m_i*m_j*(r_j-r_i)/||r_j-r_i||^3
 // F = m*a thus a = F/m
   int i,j;
@@ -217,8 +214,8 @@ void bodyAcc(Body *r, double dt, int n) {//Is dt actually necessary?
         dy = r[i].y - r[j].y;
         d = sqrt(dx*dx + dy*dy); // Maybe alpha max beta min algorithm?
         d3 = d*d*d;
-        r[i].ax -= ((G*r[i].m * r[j].m) / (d3 * (r[i].x-r[j].x))) / r[i].m;
-        r[i].ay -= ((G*r[i].m * r[j].m) / (d3 * (r[i].y-r[j].y))) / r[i].m;
+        r[i].ax -= (((G*r[i].m * r[j].m) / d3) * (r[i].x-r[j].x)) / r[i].m;
+        r[i].ay -= (((G*r[i].m * r[j].m) / d3) * (r[i].y-r[j].y)) / r[i].m;
       }
     }
   }
