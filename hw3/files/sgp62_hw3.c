@@ -7,16 +7,16 @@
 #include <omp.h>
 
 #define SOFT 1e-2f
-#define NUM_BODY 50 /* the number of bodies                  */
-#define MAX_X 90    /* the positions (x_i,y_i) are random    */
-#define MAX_Y 50 
+#define NUM_BODY 100 /* the number of bodies                  */
+#define MAX_X 100  /* the positions (x_i,y_i) are random    */
+#define MAX_Y 100 
 #define MIN_X 1     /* between MIN and MAX position          */
 #define MIN_Y 1  
-#define MAX_M 6    /* the weights w_i are random            */ //Changed to Mass, W/g = M
-#define MIN_M 0.1     /* between MIN and MAX wieght         */ //Changed to Mass
-#define MAX_V 20    /* the velocities (vx_i,vy_i) are random */
+#define MAX_M 10    /* the weights w_i are random            */ //Changed to Mass, W/g = M
+#define MIN_M 1     /* between MIN and MAX wieght         */ //Changed to Mass
+#define MAX_V 5    /* the velocities (vx_i,vy_i) are random */
 #define MIN_V 0     /* between MIN and MAX velocity          */
-#define G 0.1       /* gravitational constant                */
+#define G 0.05       /* gravitational constant                */
 #define DIM 2       /* 2 or 3 dimensions                     */
 
 // position (x,y), velocity (vx,vy), acceleration (ax,ay), weight w(SWITCHED TO MASS M)
@@ -45,7 +45,7 @@ int main(const int argc, const char** argv) {
   nBodies = NUM_BODY;
 
   const double dt = 0.01f; // time step
-  const int nIters = 1000;  // simulation iterations
+  const int nIters = 5000;  // simulation iterations
   double totalTime, avgTime;
 
   double *Bbuf = (double*)malloc(nBodies*sizeof(Body));
@@ -79,11 +79,6 @@ int main(const int argc, const char** argv) {
 
 /******************** Main loop over iterations **************/
   for (int iter = 1; iter <= nIters; iter++) {
-    total_energy(r, e, nBodies);
-    if (iter%10 == 0){
-      fprintf(tp,"%4d %10.3e %10.3e %10.3e\n",
-             iter,(*e).pe,(*e).ke, (*e).pe-(*e).ke);
-    }
     fprintf(pvp, "%d, ", iter);
     #pragma omp parallel for private(i) shared(r)
     for(i = 0; i < nBodies; i++){
@@ -102,6 +97,31 @@ int main(const int argc, const char** argv) {
       r[i].vx += (dt/2) * r[i].ax;
       r[i].vy += (dt/2) * r[i].ay;
     }
+
+    center_of_momentum(r, nBodies);
+    
+      // //Reflection Code
+      // #pragma omp for private(i)
+      // for(i=0; i < nBodies; i++){
+      //   if((r[i].x < MIN_X) || (r[i].x > MAX_X)){
+      //     r[i].vx = -r[i].vx; 
+      //   }
+
+      //   if((r[i].y < MIN_X) || r[i].y > MAX_Y){
+      //     r[i].vy = -r[i].vy; 
+      //   }
+      // }
+      //Momentum check
+    double momentumx, momentumy;
+    for(int j = 0; j < nBodies; j++){
+      momentumx += r[j].m * r[j].vx;
+      momentumy += r[j].m * r[j].vy;
+    }
+    if(iter %100 == 0){
+      printf("X: %1.3e\n",momentumx);
+      printf("Y: %1.3e\n",momentumy);
+    }
+
     
     //record the position and velocity
     for(int j = 0; j < nBodies; j++){
@@ -109,13 +129,12 @@ int main(const int argc, const char** argv) {
     }
     
 
-
-// sanity check
-    // total_energy(r, e, nBodies);
-    // if (iter%10 == 0){
-    //   fprintf(tp,"%4d %10.3e %10.3e %10.3e\n",
-    //          iter,(*e).pe,(*e).ke, (*e).pe-(*e).ke);
-    // }
+//sanity check
+    total_energy(r, e, nBodies);
+    if (iter%10 == 0){
+      fprintf(tp,"%4d, %10.3e, %10.3e, %10.3e\n",
+             iter,(*e).pe,(*e).ke, (*e).pe-(*e).ke);
+    }
   }
   
   totalTime = omp_get_wtime() - totalTime;
@@ -133,15 +152,6 @@ int main(const int argc, const char** argv) {
   }
 /* Close the pipe */
   pclose(fp); 
-
-// /* on Mac only */
-//   FILE *fpo = NULL;
-//   if (( fpo = popen("open plot_nbody.eps", "w")) == NULL)
-//   {
-//     perror("popen");
-//     exit(1);
-//   }
-//   pclose(fpo);
 
   return(0);
 
@@ -178,26 +188,27 @@ void center_of_momentum(Body *r, int n){
 void total_energy(Body *r, Energy *e, int n){
 // kinetic energy, (*e).ke = m*v^2/2;
 // potential energy : (*e).pe = -\sum_{1\leq i < j \leq N}G*m_i*m_j/||r_j-r_i||
-  int i,j;
+  int i,j; //Big jump in kinetic energy around iteration 2780
   
   (*e).ke = 0;
   (*e).pe = 0;
-  #pragma omp parallel for private(i,j) shared(e, r) 
+  //#pragma omp parallel for private(i,j) shared(e,r) //Differences between parallel and sequential? Wtf is going on here???
   for(i=0; i < n; i++){
     double pe, ke, dx, dy;
+    pe = ke = 0;
     ke = 0.5 * r[i].m * ((r[i].vx * r[i].vx) + (r[i].vy * r[i].vy));
     for(j = 0; j < n; j++){
       if(i != j){
         dx = r[i].x - r[j].x;
         dy = r[i].y - r[j].y;
-        pe -= G * (r[i].m * r[j].m) / (sqrt(dx*dx+dy*dy));
+        pe -= 0.5 * G * (r[i].m * r[j].m) / (sqrt(dx*dx+dy*dy));
       }
     }
-    #pragma omp critical
-    {
-      (*e).ke += ke;
-      (*e).pe += pe;
-    } 
+    //#pragma omp critical
+    //{
+    (*e).ke += ke;
+    (*e).pe += pe;
+    //} 
   }
 }
 
@@ -208,6 +219,7 @@ void bodyAcc(Body *r, int n) {//Is dt actually necessary?
   double dx, dy, d, d3;
   #pragma omp parallel for private(i,j,dx,dy,d,d3) shared(r)
   for(i = 0; i < n; i++){
+    r[i].ax = r[i].ay = 0;
     for(j = 0; j < n; j++){
       if (j != i){
         dx = r[i].x - r[j].x;
