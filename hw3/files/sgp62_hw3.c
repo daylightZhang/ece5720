@@ -1,5 +1,8 @@
 //Stefen Pegels, sgp62
 //gcc -std=gnu99 -o sgp62_hw3 sgp62_hw3.c -fopenmp -lm
+//To run full matrix vs triangular, switch commented function at line 92 and 109 to triAcc or bodyAcc
+//Note that striding up to 1024 bodies takes many minutes to execute
+//Also note that momentum check code is included but commented out
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,14 +11,14 @@
 
 #define SOFT 1e-2f
 #define MIN_BODY 2 /* the number of bodies                  */
-#define MAX_BODY 512
+#define MAX_BODY 1024
 #define MAX_X 100  /* the positions (x_i,y_i) are random    */
 #define MAX_Y 100 
 #define MIN_THREADS 1 //Mininum number of threads
 #define MAX_THREADS 8 //Maximum number of threads
 #define MIN_X 1     /* between MIN and MAX position          */
 #define MIN_Y 1  
-#define MAX_M 10    /* the weights w_i are random            */ //Changed to Mass, W/g = M
+#define MAX_M 10    /* the weights w_i are random            */ //Changed to Mass
 #define MIN_M 1     /* between MIN and MAX wieght         */ //Changed to Mass
 #define MAX_V 5    /* the velocities (vx_i,vy_i) are random */
 #define MIN_V 0     /* between MIN and MAX velocity          */
@@ -28,10 +31,10 @@ typedef struct { double x, y, vx, vy, ax, ay, m; } Body;
 // kinetic and potential energy
 typedef struct { double ke, pe; } Energy;
 
-typedef struct { double flx, fly; } LocalF;
+typedef struct { double flx, fly; } LocalF; //Struct for local force sums for triangular approach
 
 void bodyAcc(Body *r, int n, int num_thrs);      // computes  a
-void triAcc(Body *r, int n, int num_thrs, LocalF *f);        //Computes a with symmetry
+void triAcc(Body *r, int n, int num_thrs, LocalF *f);        //Computes a with symmetry matrix
 void total_energy(Body *r, Energy *e, int n, int num_thrs); // kinetic and potential
 void center_of_momentum(Body *r, int n, int num_thrs);      // center of momentum
 
@@ -51,7 +54,6 @@ int main(const int argc, const char** argv) {
   
   int i;
   int nBodies;
-  //nBodies = atoi(argv[1]);
 
   const double dt = 0.01f; // time step
   const int nIters = 5000;  // simulation iterations
@@ -66,9 +68,11 @@ int main(const int argc, const char** argv) {
 
 
 
-/******************** Main loop over iterations **************/
+
+//Outer loop over varying amounts of nBodies, doubling each time
   for(nBodies = MIN_BODY; nBodies <= MAX_BODY; nBodies += nBodies){
     fprintf(ftp, "%d, ", nBodies);
+    //Inner loop over varying amounts of threads, doubling each time
     for(int num_thrs = MIN_THREADS; num_thrs <= MAX_THREADS; num_thrs += num_thrs){
         /******************** (0) initialize N-body ******************/
       for(int k = 0; k < nBodies; k++){
@@ -87,10 +91,11 @@ int main(const int argc, const char** argv) {
       total_energy(r, e, nBodies, num_thrs);
 
     /******************** (3) Initial acceleration *****************/
-      //bodyAcc(r, nBodies, num_thrs);  
-      triAcc(r, nBodies, num_thrs, f);         
+      bodyAcc(r, nBodies, num_thrs);  //SELECT ONE
+      //triAcc(r, nBodies, num_thrs, f);         
 
       totalTime = omp_get_wtime();
+      /******************** Main loop over iterations **************/
       for (int iter = 1; iter <= nIters; iter++) {
         //fprintf(pvp, "%d, ", iter);
         #pragma omp parallel for private(i) shared(r) num_threads(num_thrs)
@@ -103,8 +108,8 @@ int main(const int argc, const char** argv) {
           r[i].y += dt*r[i].vy;
         }
         //Update accelerations based on new positions
-        //bodyAcc(r, nBodies, num_thrs);
-        triAcc(r, nBodies, num_thrs, f); 
+        bodyAcc(r, nBodies, num_thrs);
+        //triAcc(r, nBodies, num_thrs, f);  //SELECT ONE
         #pragma omp parallel for private(i) shared(r) num_threads(num_thrs)
         for(i=0; i < nBodies; i++){
           // "half kick"
@@ -114,41 +119,33 @@ int main(const int argc, const char** argv) {
 
         center_of_momentum(r, nBodies, num_thrs);
         
-          // //Reflection Code
-        // #pragma omp parallel for private(i) num_threads(num_thrs)
-        // for(i=0; i < nBodies; i++){
-        //   if((r[i].x < MIN_X) || (r[i].x > MAX_X)){
-        //     r[i].vx = -r[i].vx; 
-        //   }
-
-        //   if((r[i].y < MIN_X) || r[i].y > MAX_Y){
-        //     r[i].vy = -r[i].vy; 
-        //   }
-        // }
           //Momentum check
-        double momentumx, momentumy;
-        for(int j = 0; j < nBodies; j++){
-          momentumx += r[j].m * r[j].vx;
-          momentumy += r[j].m * r[j].vy;
-        }
-        if(iter %1000 == 0){
-          printf("X: %1.3e\n",momentumx);
-          printf("Y: %1.3e\n",momentumy);
-        }
+        // double momentumx, momentumy;
+        // for(int j = 0; j < nBodies; j++){
+        //   momentumx += r[j].m * r[j].vx;
+        //   momentumy += r[j].m * r[j].vy;
+        // }
+        // if(iter %1000 == 0){
+        //   printf("X: %1.3e\n",momentumx);
+        //   printf("Y: %1.3e\n",momentumy);
+        // }
 
         
         //record the position and velocity
-        // for(int j = 0; j < nBodies; j++){
-        //   fprintf(pvp, "%10.3e, %10.3e, %10.3e, %10.3e, ",r[j].x, r[j].y, r[j].vx, r[j].vy);
-        // }
+        if(iter %1000 == 0){
+          for(int j = 0; j < nBodies; j++){
+            fprintf(pvp, "%10.3e, %10.3e, %10.3e, %10.3e, ",r[j].x, r[j].y, r[j].vx, r[j].vy);
+          }
+        }
+
         
 
-    //sanity check
-        // total_energy(r, e, nBodies, num_thrs);
-        // if (iter%10 == 0){
-        //   fprintf(tp,"%4d, %10.3e, %10.3e, %10.3e\n",
-        //         iter,(*e).pe,(*e).ke, (*e).pe-(*e).ke);
-        // }
+        //sanity check
+        total_energy(r, e, nBodies, num_thrs);
+        if (iter%10 == 0){
+          fprintf(tp,"%4d, %10.3e, %10.3e, %10.3e\n",
+                iter,(*e).pe,(*e).ke, (*e).pe-(*e).ke);
+        }
       }
       totalTime = omp_get_wtime() - totalTime;
       fprintf(ftp, "%5.3e, ", totalTime);
@@ -162,7 +159,7 @@ int main(const int argc, const char** argv) {
   fclose(tp); fclose(pvp); fclose(ftp);
   
     FILE *fp = NULL;          // script for gnuplot which generates
-                              // eps graph of timings
+                              // eps graph of energy
 /* Create one way pipe line with call to popen() */
   if (( fp = popen("gnuplot plot_nbody.gp", "w")) == NULL)
   {
@@ -222,7 +219,7 @@ void total_energy(Body *r, Energy *e, int n, int num_thrs){
   
   (*e).ke = 0;
   (*e).pe = 0;
-  #pragma omp parallel for private(i,j) shared(e,r) num_threads(num_thrs)//Differences between parallel and sequential? Wtf is going on here???
+  #pragma omp parallel for private(i,j) shared(e,r) num_threads(num_thrs)
   for(i=0; i < n; i++){
     double pe, ke, dx, dy,sqt;
     pe = ke = 0;
@@ -244,7 +241,7 @@ void total_energy(Body *r, Energy *e, int n, int num_thrs){
   }
 }
 
-void bodyAcc(Body *r, int n, int num_thrs) {//Is dt actually necessary?
+void bodyAcc(Body *r, int n, int num_thrs) {
 // F = G*sum_{i,j} m_i*m_j*(r_j-r_i)/||r_j-r_i||^3
 // F = m*a thus a = F/m
   int i,j;
@@ -256,7 +253,7 @@ void bodyAcc(Body *r, int n, int num_thrs) {//Is dt actually necessary?
       if (j != i){
         dx = r[i].x - r[j].x;
         dy = r[i].y - r[j].y;
-        d = sqrt(dx*dx + dy*dy); // Maybe alpha max beta min algorithm?
+        d = sqrt(dx*dx + dy*dy);
         d3 = d*d*d;
         if(d3 == 0) d3 += 1e-32;
         if(dx == 0) dx += 1e-32;

@@ -4,7 +4,7 @@ set terminal postscript eps enhanced color solid colortext 18
 set output 'bodytime_plots.eps'
 
 # Now plot the data with lines and points
-set title "NBody Problem Time per num_bodies, for varying # Threads"
+set title "NBody Problem Time per num bodies, for varying # Threads (Triangular)"
 set title font "Helvetica,18"
 set xlabel "nBodies"
 set ylabel "time in seconds"
